@@ -5,8 +5,16 @@ import './style.css';
 import { useStoreContext } from '../../utils/GlobalState';
 import { TOGGLE_CART, ADD_MULTIPLE_TO_CART } from '../../utils/actions';
 import { idbPromise } from '../../utils/helpers';
+import { QUERY_CHECKOUT } from '../../utils/queries';
+import { loadStripe } from '@stripe/stripe-js';
+import { useLazyQuery } from '@apollo/client';
+
+const stripePromise = loadStripe('pk_test_TYooMQauvdEDq54NiTphI7jx');
 
 const Cart = () => {
+    //use useLazyQuery Hook 
+    const [getCheckout, {data}] = useLazyQuery(QUERY_CHECKOUT);
+
 
     //handle TOGGLE-CART action
     const [state, dispatch] = useStoreContext();
@@ -40,6 +48,31 @@ const Cart = () => {
         return sum.toFixed(2);
     }
 
+    function submitCheckout() {
+        const productIds = [];
+
+        getCheckout({
+            variables: {products: productIds}
+        });
+
+        state.cart.forEach((item) => {
+            for (let i = 0; i < item.purchaseQuantity; i++) {
+                productIds.push(item._id);
+            }
+        });
+    }
+
+    //useEffect Hook to redirect to Stripe once data variable has data in it
+    useEffect (() => {
+        if (data) {
+            stripePromise.then((res) => {
+                res.redirectToCheckout({ sessionId: data.checkout.session});
+            });
+        }
+    }, [data]);
+
+    
+
     //display cart icon 
     if (!state.cartOpen) {
         return (
@@ -67,7 +100,7 @@ const Cart = () => {
                     <div className="flex-row space-between">
                         <strong>Total: ${calculateTotal()}</strong>
                         {Auth.loggedIn() ?
-                        <button>
+                        <button onClick={submitCheckout}>
                             Checkout
                         </button>
                         :
